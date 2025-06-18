@@ -44,7 +44,7 @@ void PrintEntries(const char* filename) {
     std::vector<int> eventNo;
     std::vector<int> LED_Values = {2, 5 ,8, 11, 14, 17, 20, 23, 26, 29};
     std::vector<int> HV_Values = {1400, 1450 ,1500 ,1550, 1600, 1650, 1700, 1750, 1800};
-    std::map<std::string, std::vector<float>> peakHVLED;
+    TH2F* hvledComparison = new TH2F("hvledComparison", "Avg Peak: LED vs HV", 10, 1, 30, 9, 1400, 1801);
     
     
     //Loop through all entries in the tree
@@ -68,7 +68,38 @@ void PrintEntries(const char* filename) {
         /* std::cout << peak << std::endl; */
         
     }
-    
+     
+    int entryLocation = 0;
+    //Interates between HV values and LED values
+    for (int hv : HV_Values) {
+    	for (int led : LED_Values) {
+    		//Initialize a vector to store three values
+        	std::vector<int> values;
+        	int sum = 0;
+
+        	for (int i = 0; i < 3; ++i){
+        	//Go to the specific location of entries and get data from that location
+            	t->GetEntry(entryLocation);
+            	entryLocation++;
+            	//Each value is stored in values and aded to sum
+            	values.push_back(peak_raw);
+            	sum += peak_raw;
+        	}
+        	
+        	//Finds the average
+        	int avg_int = static_cast<int>(sum / 3.0);
+        	
+        	//Print the current HV and LED settings, the three values in the specific combination and the average
+        	std::cout << "HV: " << hv << ", LED: " << led << " -> Values: ";
+        	for (int val : values)
+            		std::cout << val << " ";
+        		std::cout << "-> Avg: " << avg_int << std::endl;
+        		
+        	hvledComparison->Fill(led, hv, avg_int);
+        		
+    	}
+    }
+
     //Fill histogram with data on all entries in the calorimeter
     /* for (long i = 0; i < entries; i++) {
     	t->GetEntry(i);
@@ -129,10 +160,15 @@ void PrintEntries(const char* filename) {
     
     
     //Creates 1D histogram graph of values at one entry
-    /* TCanvas* c7 = new TCanvas("c", "Map of One Entry", 800, 800);
+    /* TCanvas* c7 = new TCanvas("c7", "Map of One Entry", 800, 800);
     oneEntry->GetXaxis()->SetTitle("Row");
     oneEntry->GetYaxis()->SetTitle("Column");
     oneEntry->Draw("COLZ"); */
+    
+    TCanvas* c8 = new TCanvas("c8", "peak_raw per LED and HV", 800, 800);
+    hvledComparison->GetXaxis()->SetTitle("LED Value");
+    hvledComparison->GetYaxis()->SetTitle("HV Value");
+    hvledComparison->Draw("COLZ");
     
     
     //Print the total entries in the data

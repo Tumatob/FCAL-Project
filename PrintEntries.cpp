@@ -10,7 +10,7 @@ void PrintEntries(const char* filename) {
     long entries = t->GetEntries();
     
     //Declare varaibles to hold branch data
-    UInt_t channelNum, eventNum, rocid, slot, channel, itrigger, peak_raw, integral, pedestal, time, nsamples, QF, row, column;
+    UInt_t channelNum, eventNum, rocid, slot, channel, itrigger, peak_raw, integral, pedestal, time, nsamples, QF, row, column, fptrigger;
     float peak;
     
     
@@ -29,6 +29,7 @@ void PrintEntries(const char* filename) {
     t->SetBranchAddress("row", &row);
     t->SetBranchAddress("column", &column);
     t->SetBranchAddress("peak", &peak);
+    t->SetBranchAddress("fptrigger", &fptrigger);
     
     
     //Create Histogram for visualizing different quantities
@@ -42,63 +43,74 @@ void PrintEntries(const char* filename) {
     TH2F* oneEntry = new TH2F("oneEntry", "map of one Entry", 62, -2, 60, 62, -2, 60);
     std::vector<int> peak_raw_val;
     std::vector<int> eventNo;
-    std::vector<int> LED_Values = {2, 5 ,8, 11, 14, 17, 20, 23, 26, 29};
+    std::vector<int> full_peak(2520, 0);
+    /* std::vector<int> LED_Values = {2, 5 ,8, 11, 14, 17, 20, 23, 26, 29}; */
+    std::vector<int> LED_Values = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29};
     std::vector<int> HV_Values = {1400, 1450 ,1500 ,1550, 1600, 1650, 1700, 1750, 1800};
-    TH2F* hvledComparison = new TH2F("hvledComparison", "Avg Peak: LED vs HV", 10, 1, 30, 9, 1400, 1801);
-    
+    TH2F* hvledComparison = new TH2F("hvledComparison", "Avg Peak: LED vs HV", 28, 1.5, 29.5, 9, 1375, 1825);
     
     //Loop through all entries in the tree
     for (long i = 0; i < entries; i++) {
     	t->GetEntry(i);
     
-    	if (eventNum == 2000) {
+    	/* if (eventNum == 2000) {
     	  oneEntry->Fill(row, column, integral);
-    	}
+    	} */
+    	
     	
     	//Takes data from one block in the calorimeter
-    	if (row == 1 && column == 30) {
-    	  peak_raw_val.push_back(peak_raw);
-          eventNo.push_back(eventNum);
-          bottom_integral->Fill(integral);
+    	if (row == 15 && column == 30) {
+    	peak_raw_val.push_back(peak_raw);
+    	eventNo.push_back(fptrigger);
+    	
+    		if (fptrigger < 2520) {
+            		full_peak[fptrigger] = peak_raw;
+       		}
+    	  
+          /* bottom_integral->Fill(integral);
           bottom_time->Fill(time);
-          bottom_peak->Fill(peak_raw);
+          bottom_peak->Fill(peak_raw); */
         }
         
         //Print all values
         /* std::cout << peak << std::endl; */
         
     }
-     
-    int entryLocation = 0;
-    //Interates between HV values and LED values
+    
+
+
+    //Initialie an integer called entry_location
+    int entry_location = 0;
+    
+    //Initialize a nested loop to loop over each HV:LED combination
     for (int hv : HV_Values) {
     	for (int led : LED_Values) {
-    		//Initialize a vector to store three values
+    		//Initialize a vector called values and an integer called sum
         	std::vector<int> values;
-        	int sum = 0;
-
-        	for (int i = 0; i < 3; ++i){
-        	//Go to the specific location of entries and get data from that location
-            	t->GetEntry(entryLocation);
-            	entryLocation++;
-            	//Each value is stored in values and aded to sum
-            	values.push_back(peak_raw);
-            	sum += peak_raw;
+       	 	int sum = 0;
+       	 	
+       	 	//Create a for loop that loops over the five flashes per combination 
+        	for (int i = 0; i < 10; i++) {
+            		int val = full_peak[entry_location];
+            		values.push_back(val);
+            		sum += val;
+            		entry_location++;
         	}
         	
-        	//Finds the average
-        	int avg_int = static_cast<int>(sum / 3.0);
-        	
-        	//Print the current HV and LED settings, the three values in the specific combination and the average
-        	std::cout << "HV: " << hv << ", LED: " << led << " -> Values: ";
-        	for (int val : values)
-            		std::cout << val << " ";
-        		std::cout << "-> Avg: " << avg_int << std::endl;
-        		
-        	hvledComparison->Fill(led, hv, avg_int);
-        		
+        //Calculate the average
+        int avg_int = sum / 10.0;
+        
+        //Print HV, LED, the five values, and average
+        std::cout << "fptrigger: " << eventNo[entry_location] << " HV: " << hv << ", LED: " << led << " -> Values: ";
+        for (int val : values)
+            std::cout << val << " ";
+            std::cout << "-> Avg: " << avg_int << std::endl;
+            
+            //Fills the histogram
+            hvledComparison->Fill(led, hv, avg_int);
     	}
-    }
+   }
+
 
     //Fill histogram with data on all entries in the calorimeter
     /* for (long i = 0; i < entries; i++) {
@@ -142,11 +154,11 @@ void PrintEntries(const char* filename) {
     bottom_integral->GetYaxis()->SetTitle("Counts");
     bottom_integral->Draw();
     
-    //DIsplays a 1D histogram at a specific time value
+    DIsplays a 1D histogram at a specific time value
     TCanvas* c5 = new TCanvas("c5", "A specific time", 800, 600);
     bottom_time->GetXaxis()->SetTitle("Time");
     bottom_time->GetYaxis()->SetTitle("Counts");
-    bottom_time->Draw();
+    bottom_time->Draw(); 
     
     //DIsplays a 1D histogram at a specific peak value
     TCanvas* c6 = new TCanvas("c6", "A specific peak", 800, 600);
@@ -157,7 +169,7 @@ void PrintEntries(const char* filename) {
     //Creates a plot with peak_raw_val and loops over the event numbers
     TGraph* graph = new TGraph(eventNo.size(), &eventNo[0], &peak_raw_val[0]);
     graph->Draw("AP");
-    
+
     
     //Creates 1D histogram graph of values at one entry
     /* TCanvas* c7 = new TCanvas("c7", "Map of One Entry", 800, 800);
@@ -165,12 +177,12 @@ void PrintEntries(const char* filename) {
     oneEntry->GetYaxis()->SetTitle("Column");
     oneEntry->Draw("COLZ"); */
     
-    TCanvas* c8 = new TCanvas("c8", "peak_raw per LED and HV", 800, 800);
+    TCanvas* c8 = new TCanvas("c8", "Peak_raw per LED and HV", 800, 800);
     hvledComparison->GetXaxis()->SetTitle("LED Value");
     hvledComparison->GetYaxis()->SetTitle("HV Value");
     hvledComparison->Draw("COLZ");
     
-    
     //Print the total entries in the data
     std::cout << "Total Entries: " << entries << std::endl;
+    /* std::cout << "Total Entries in peak_raw: " << peak_raw_val.size() << std::endl; */
 }

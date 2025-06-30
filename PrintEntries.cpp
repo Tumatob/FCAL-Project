@@ -59,7 +59,7 @@ void PrintEntries(const char* filename) {
     	
     	
     	//Takes data from one block in the calorimeter
-    	if (row == 15 && column == 30) {
+    	if (row == 1 && column == 30) {
     	peak_raw_val.push_back(peak_raw);
     	eventNo.push_back(fptrigger);
     	
@@ -88,23 +88,33 @@ void PrintEntries(const char* filename) {
     		//Initialize a vector called values and an integer called sum
         	std::vector<int> values;
        	 	int sum = 0;
+       	 	int count_nonzero = 0;
        	 	
        	 	//Create a for loop that loops over the five flashes per combination 
         	for (int i = 0; i < 10; i++) {
             		int val = full_peak[entry_location];
             		values.push_back(val);
             		sum += val;
+            		if (val != 0) {
+            			count_nonzero++;
+            		}
             		entry_location++;
         	}
         	
         //Calculate the average
-        int avg_int = sum / 10.0;
+        int avg_int;
+        if (count_nonzero > 0) {
+        	avg_int = sum / count_nonzero;
+        }
+        else {
+        	avg_int = 0;
+        }
         
         //Print HV, LED, the five values, and average
-        std::cout << "fptrigger: " << eventNo[entry_location] << " HV: " << hv << ", LED: " << led << " -> Values: ";
+        std::cout << "fptrigger: " << eventNo[entry_location - 1] << " HV: " << hv << ", LED: " << led << " -> Values: ";
         for (int val : values)
             std::cout << val << " ";
-            std::cout << "-> Avg: " << avg_int << std::endl;
+        std::cout << "-> Avg: " << avg_int << std::endl;
             
             //Fills the histogram
             hvledComparison->Fill(led, hv, avg_int);

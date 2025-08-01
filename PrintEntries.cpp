@@ -42,6 +42,11 @@ void PrintEntries(const char* filename) {
     //std::vector<int> LED_Values = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29};
     std::vector<int> HV_Values = {1400, 1450 ,1500 ,1550, 1600, 1650, 1700, 1750, 1800};
     TH2F* hvledComparison = new TH2F("hvledComparison", "Avg Peak: LED vs HV", 10, 1.5, 28.5, 9, 1375, 1825);
+    
+    TH2F* h_avg_per_cell = new TH2F("h_avg_per_cell", "Average Peak per Cell;Column;Row", 60, 0, 60, 59, 0, 59);
+    std::vector<std::vector<std::vector<int>>> peak_map(59, std::vector<std::vector<int>>(60, std::vector<int>(2520, 0)));
+    std::vector<std::vector<TH2F*>> hHVLED_all(59, std::vector<TH2F*>(60, nullptr));
+    
     //Assign the row and specific column being looked at
     int fixedRow = 10;
     //The columns that need to be looked at
@@ -249,34 +254,105 @@ void PrintEntries(const char* filename) {
         	}
         }
      }
-     std::cout << "Number of used values: " << usedNum << std::endl;
 
     
     for (int col = colMin2; col <= colMax2; col++) {
     int colIdx = col - colMin2;
     std::vector<int>& colBuf = full_peak_col2[colIdx];
     std::size_t pos = 0;
-    for (int hv : HV_Values) {
-        for (int led : LED_Values) {
-            int sum = 0;
-            int count_nonzero = 0;
-            for (int trg = 0; trg < 20; ++trg, ++pos) {
-                if (pos >= colBuf.size()) break;
-                int val = colBuf[pos];
-                if (val != 0) {
-                    sum += val;
-                    count_nonzero++;
-                }
-                usedNum++;
-            }
-            int avg_int = (count_nonzero > 0) ? (sum / count_nonzero) : 0;
-            hHVLED2[colIdx]->Fill(led, hv, avg_int);
+    	for (int hv : HV_Values) {
+        	for (int led : LED_Values) {
+            	int sum = 0;
+            	int count_nonzero = 0;
+            	for (int trg = 0; trg < 20; ++trg, ++pos) {
+                	if (pos >= colBuf.size()) break;
+                	int val = colBuf[pos];
+                	if (val != 0) {
+                    	sum += val;
+                    	count_nonzero++;
+                	}
+                	usedNum++;
+            	}
+            	int avg_int = (count_nonzero > 0) ? (sum / count_nonzero) : 0;
+            	hHVLED2[colIdx]->Fill(led, hv, avg_int);
+        	}
+    	}
+    }
+    
+    
+    /////////////////////////////////////////////////////////////////////
+    for (int r = 0; r < 59; r++) {
+        for (int c = 0; c < 60; c++) {
+            hHVLED_all[r][c] = new TH2F(Form("hHVLED_row%d_col%d", r, c), Form("Avg Peak: LED vs HV (Row %d, Col %d);LED Value;HV Value", r, c) 9, 1.5, 28.5, 9, 1375, 1825);
         }
     }
-}
+    // Loop through entries and fill the peak_map
+    for (long i = 0; i < entries; i++) {
+        t->GetEntry(i);
+        if (row < 59 && column < 60) {
+            int shifted_fp = fptrigger - 20;
+            if (shifted_fp >= 0 && shifted_fp < 2520) {
+                peak_map[row][column][shifted_fp] = peak_raw;
+            }
+        }
+    }
+    // Loop through each detector cell and compute average peak values
+    for (int r = 0; r < 59; ++r) {
+        for (int c = 0; c < 60; ++c) {
+            std::vector<int>& buffer = peak_map[r][c];
+            size_t pos = 0;
+            for (int hv : HV_Values) {
+                for (int led : LED_Values) {
+                    int sum = 0;
+                    int count = 0;
+                    for (int k = 0; k < 20 && pos < buffer.size(); ++k, ++pos) {
+                        int val = buffer[pos];
+                        if (val != 0) {
+                            sum += val;
+                            count++;
+                        }
+                    }
+                    int avg = (count > 0) ? (sum / count) : 0;
+                    hHVLED_all[r][c]->Fill(led, hv, avg);
+                }
+            }
+        }
+    }
+    std::vector<std::vector<double>> histogramAverages(59, std::vector<double>(60, 0.0));
+    for (int r = 0; r < 59; ++r) {
+    	for (int c = 0; c < 60; ++c) {
+        	TH2F* hist = hHVLED_all[r][c];
+        	double sum = 0.0;
+        	int count = 0;
+        	for (int x = 1; x <= hist->GetNbinsX(); ++x) {
+            		for (int y = 1; y <= hist->GetNbinsY(); ++y) {
+                	int val = hist->GetBinContent(x, y);
+                		if (val != 0) {
+                    			sum += val;
+                    		count++;
+                		}
+            		}
+        	}
+        	int avg = (count > 0) ? (sum / count) : 0.0;
+        	histogramAverages[r][c] = avg;
+    	}
+    }
 
-
-
+    for (int r = 0; r < 59; ++r) {
+    	for (int c = 0; c < 60; ++c) {
+        	int entries = hHVLED_all[r][c]->GetEntries();
+    	}
+    }
+    
+    for (int r = 0; r < 59; ++r) {
+    	for (int c = 0; c < 60; ++c) {
+        	int avg_val = histogramAverages[r][c];
+        	h_avg_per_cell->SetBinContent(c + 1, r + 1, avg_val); // ROOT bins start at 1
+    	}
+    }
+    
+    /////////////////////////////////////////////////////////////////////////////////////////////////////
+    
     //Creates a 2D histogram to display calorimeter
     /* TCanvas* c1 = new TCanvas("c1", "Row vs Column", 1000, 1000);
     h2->GetXaxis()->SetTitle("Row");
@@ -340,8 +416,11 @@ void PrintEntries(const char* filename) {
     	hHVLED[i]->Draw("COLZ");
     } */
     
-    TCanvas* c_singleCell = new TCanvas("c_singleCell", "Single Detector Histogram (Row 10, Col 22)", 800, 600);
-    h_singleDetector->Draw("COLZ");
+    TCanvas* c_avg_map = new TCanvas("c_avg_map", "Average Peak Map", 1000, 800);
+    h_avg_per_cell->Draw("COLZ");
+
+    /* TCanvas* c_singleCell = new TCanvas("c_singleCell", "Single Detector Histogram (Row 10, Col 22)", 800, 600);
+    h_singleDetector->Draw("COLZ"); */
 
     // Plot shifted fptrigger
 	/* TCanvas* c_shift = new TCanvas("c_shift", "Shifted fptrigger - 20", 800, 600);
@@ -349,9 +428,8 @@ void PrintEntries(const char* filename) {
 	c_shift->cd();
 	gr_shift->Draw("AP"); */
 
-
    //Create a canvas that stores histograms from column 0 - 29
-   TCanvas *cAll = new TCanvas("cAll", "All Column Histograms 0-29", 1600, 1000);
+   /* TCanvas *cAll = new TCanvas("cAll", "All Column Histograms 0-29", 1600, 1000);
    int rows = 6;
    int cols = (nCols + 1) / 6;
    cAll->Divide(cols, rows);
@@ -359,9 +437,10 @@ void PrintEntries(const char* filename) {
    	cAll->cd(i+1);
     	hHVLED[i]->Draw("COLZ");
     }
-    cAll->Update();
+    cAll->Update(); */
+    
     //Create a canvas that stores histograms from column 30 - 58
-    TCanvas *cAll2 = new TCanvas("cAll2", "All Column Histograms 30–58", 1600, 1000);
+    /* TCanvas *cAll2 = new TCanvas("cAll2", "All Column Histograms 30–58", 1600, 1000);
     int cols2 = 6;
     int rows2 = (nCols2 + cols2 - 1) / cols2;
     cAll2->Divide(cols2, rows2);
@@ -369,9 +448,10 @@ void PrintEntries(const char* filename) {
     	cAll2->cd(i+1);
     	hHVLED2[i]->Draw("COLZ");
     }
-    cAll2->Update();
+    cAll2->Update(); */
+    
+    
     //Print the total entries in the data
     std::cout << "Total Entries: " << entries << std::endl;
-    /* std::cout << "Total Entries in peak_raw: " << peak_raw_val.size() << std::endl; */
      
 }

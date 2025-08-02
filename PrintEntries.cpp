@@ -283,7 +283,7 @@ void PrintEntries(const char* filename) {
     /////////////////////////////////////////////////////////////////////
     for (int r = 0; r < 59; r++) {
         for (int c = 0; c < 60; c++) {
-            hHVLED_all[r][c] = new TH2F(Form("hHVLED_row%d_col%d", r, c), Form("Avg Peak: LED vs HV (Row %d, Col %d);LED Value;HV Value", r, c) 9, 1.5, 28.5, 9, 1375, 1825);
+            hHVLED_all[r][c] = new TH2F(Form("hHVLED_row%d_col%d", r, c), Form("Avg Peak: LED vs HV (Row %d, Col %d);LED Value;HV Value", r, c), 9, 1.5, 28.5, 9, 1375, 1825);
         }
     }
     // Loop through entries and fill the peak_map
@@ -340,7 +340,7 @@ void PrintEntries(const char* filename) {
 
     for (int r = 0; r < 59; ++r) {
     	for (int c = 0; c < 60; ++c) {
-        	int entries = hHVLED_all[r][c]->GetEntries();
+        	int histogramEntries = hHVLED_all[r][c]->GetEntries();
     	}
     }
     
